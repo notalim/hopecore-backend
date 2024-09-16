@@ -12,6 +12,26 @@ func main() {
 	database.InitDB()
 	defer database.DB.Close()
 
+	// Drop the quotes table
+	_, err := database.DB.Exec("DROP TABLE IF EXISTS quotes")
+	if err != nil {
+		log.Printf("Error dropping table: %v", err)
+	}
+
+	// Recreate the quotes table
+	_, err = database.DB.Exec(`
+		CREATE TABLE quotes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			text TEXT NOT NULL,
+			character TEXT NOT NULL,
+			source TEXT NOT NULL,
+			media_type TEXT NOT NULL
+		)
+	`)
+	if err != nil {
+		log.Fatal("Error recreating table:", err)
+	}
+
 	quotes := scraper.ScrapeQuotes()
 	for _, q := range quotes {
 		_, err := database.DB.Exec("INSERT INTO quotes (text, character, source, media_type) VALUES (?, ?, ?, ?)",

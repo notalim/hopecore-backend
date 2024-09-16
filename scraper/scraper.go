@@ -8,56 +8,64 @@ import (
 	"github.com/notalim/hopecore-backend/models"
 )
 
+var shows = []models.Show{
+	{IMDbID: "tt2560140", Name: "Attack on Titan", MediaType: "TV Series"},
+	// {IMDbID: "tt0944947", Name: "Game of Thrones", MediaType: "TV Series"},
+	// {IMDbID: "tt0903747", Name: "Breaking Bad", MediaType: "TV Series"},
+	// Add more shows here
+}
+
 func ScrapeQuotes() []models.Quote {
 	var quotes []models.Quote
-	quoteCount := 0
-	maxQuotes := 10
-
 	c := colly.NewCollector(
 		colly.AllowedDomains("www.imdb.com"),
 	)
 
-	c.OnHTML(".quote", func(e *colly.HTMLElement) {
-		if quoteCount >= maxQuotes {
+	c.OnHTML(".ipc-page-content-container", func(e *colly.HTMLElement) {
+		show := getShowFromURL(e.Request.URL.Path)
+		if show == nil {
 			return
 		}
 
-		quoteText := strings.TrimSpace(e.ChildText(".quote-text"))
-		character := strings.TrimSpace(e.ChildText(".quote-character"))
-		source := strings.TrimSpace(e.ChildAttr("a.quote-source", "title"))
-		mediaType := determineMediaType(source)
+		e.ForEach(".ipc-html-content-inner-div", func(_ int, el *colly.HTMLElement) {
+			el.ForEach("li", func(_ int, li *colly.HTMLElement) {
+				character := strings.TrimSpace(li.ChildText("a.ipc-md-link"))
+				quoteText := strings.TrimSpace(li.Text)
+				
+				// Remove the character name and colon from the quote text
+				quoteText = strings.TrimPrefix(quoteText, character)
+				quoteText = strings.TrimPrefix(quoteText, ": ")
+				quoteText = strings.TrimSpace(quoteText)
 
-		quote := models.Quote{
-			Text:      quoteText,
-			Character: character,
-			Source:    source,
-			MediaType: mediaType,
-		}
+				quote := models.Quote{
+					Text:      quoteText,
+					Character: character,
+					Source:    show.Name,
+					MediaType: show.MediaType,
+				}
 
-		quotes = append(quotes, quote)
-		quoteCount++
+				quotes = append(quotes, quote)
+			})
+		})
 	})
 
 	c.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting", r.URL)
 	})
 
-	// Visit multiple pages to get a variety of quotes
-	for i := 1; i <= 10; i++ {
-		url := fmt.Sprintf("https://www.imdb.com/search/title-text/?quotes=on&sort=num_votes,desc&page=%d", i)
+	for _, show := range shows {
+		url := fmt.Sprintf("https://www.imdb.com/title/%s/quotes/", show.IMDbID)
 		c.Visit(url)
 	}
 
 	return quotes
 }
 
-func determineMediaType(source string) string {
-	lowercaseSource := strings.ToLower(source)
-	if strings.Contains(lowercaseSource, "tv series") || strings.Contains(lowercaseSource, "tv mini series") {
-		return "TV Show"
-	} else if strings.Contains(lowercaseSource, "anime") {
-		return "Anime"
-	} else {
-		return "Movie"
+func getShowFromURL(url string) *models.Show {
+	for _, show := range shows {
+		if strings.Contains(url, show.IMDbID) {
+			return &show
+		}
 	}
+	return nil
 }

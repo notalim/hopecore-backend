@@ -9,6 +9,12 @@ type Quote struct {
 	MediaType string `json:"media_type"`
 }
 
+type Show struct {
+	IMDbID    string
+	Name      string
+	MediaType string
+}
+
 type Preferences struct {
 	ID               int    `json:"id"`
 	UserID           string `json:"user_id"`
